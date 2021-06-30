@@ -10,18 +10,13 @@ contract Mai is ERC20, ERC20Burnable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
-    event _VoteCommitted(uint indexed pollID, uint numTokens, address indexed voter);
-    event _VoteRevealed(uint indexed pollID, uint numTokens, uint votesFor, uint votesAgainst, uint indexed choice, address indexed voter, uint salt);
+    event _VoteMade(uint256 indexed pollID, uint256 votes, address indexed voter);
     event _PollCreated(uint voteQuorum, uint commitEndDate, uint revealEndDate, uint indexed pollID, address indexed creator);
-    event _VotingRightsGranted(uint numTokens, address indexed voter);
-    event _VotingRightsWithdrawn(uint numTokens, address indexed voter);
-    event _TokensRescued(uint indexed pollID, address indexed voter);
-
-    uint256 constant public INITIAL_POLL_NONCE = 0;
-    uint256 public pullNonce;
+    event _VotingRightsGranted(address indexed voter);
+    event _VotingRightsRevoked(address indexed voter);
 
     constructor() ERC20("Mai", "MAI") {
-        _mint(msg.sender, 10000 * 10 ** decimals());
+        _mint(msg.sender, 1000 * 10 ** decimals());
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _setupRole(MINTER_ROLE, msg.sender);
         _setupRole(VOTER_ROLE, msg.sender);
@@ -37,18 +32,27 @@ contract Mai is ERC20, ERC20Burnable, AccessControl {
         mapping(address => uint256) _votes;
     }
 
-    mapping (uint256 => Poll) public _mapToPoll;
+    mapping (uint256 => Poll) public pollID;
 
     function voterAllocation(address voter) public {
         require(balanceOf(voter) >= 1000);
-        add(VOTER_ROLE, voter);
+        grantRole(VOTER_ROLE, voter);
+        emit _VotingRightsGranted(voter);
     }
 
-    modifier voterCheck(address voter) public {
-        require(hasRole(VOTER_ROLE) || balanceOf(voter) >= 1000);
+    function voteRevokation(address voter) public {
+        revokeRole(VOTER_ROLE, voter);
+        emit _VotingRightsRevoked(voter);
+    }
+
+    modifier voterCheck(address voter) {
         if (hasRole(VOTER_ROLE) == False) {
             voterAllocation(voter);
         }
+        if (hasRole(VOTER_ROLE) == True && numOfTokens < 1000) {
+           voteRevokation(voter); 
+        }
+        require(hasRole(VOTER_ROLE) || balanceOf(voter) >= 1000);
     }
 
     function claimVote(address voter) public voterCheck{
@@ -59,20 +63,13 @@ contract Mai is ERC20, ERC20Burnable, AccessControl {
     }
 
     function makeVote(address voter, uint256 votesMade, uint256 pollID) public voterCheck{
-        require(_votes[voter] > 0, "Address has no votes current, call function claimVote to claim a vote");
+        require(_votes[voter] > 0, "Address has no votes currently, call function claimVote to claim a vote");
         require(_votesMade <= _votes[voter]);
         _votes[voter] = sub(_votes[voter], votesMade);
-        emit VoteCommitted(pollID, votesMade, voter);
-    }
+        emit _VoteMade(pollID, votesMade, voter); }
 
     function mint(address to, uint256 amount) public {
         require(hasRole(MINTER_ROLE, msg.sender));
         _mint(to, amount);
     }
-
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
-        _transfer(_msgSender(), recipient, amount);
-        return true;
-    }
-
-    }
+}
