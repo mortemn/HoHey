@@ -14,7 +14,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
     event _VoteMade(uint256 indexed pollID, uint256 votes, address indexed voter);
-    event _PollCreated(uint voteQuorum, uint commitEndDate, uint indexed pollID, address indexed creator);
+    event _PollCreated(uint voteAmount, uint commitEndDate, uint indexed pollID, address indexed creator);
     event _VotingRightsGranted(address indexed voter);
     event _VotingRightsRevoked(address indexed voter);
     event _resultsGenerated(uint256 amountMinted, uint256 pollID);
@@ -28,28 +28,45 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
 
     struct Poll {
         uint256 commitEndDate;
+        uint256 voteAmount;
+        bool quorumOption;
         uint256 voteQuorum;
         uint256 votesFor;
         uint256 votesAgainst;
+        uint256 option;
         bool ongoing;
         mapping(address => uint256) _votesClaimed;
         mapping(address => uint256) _votes;
     }
 
     mapping (uint256 => Poll) public pollMapping;
+    mapping (uint256 => uint256) public totalVotes;
     uint256 pollNonce = 0;
-
-    function startPoll(uint256 _voteQuorum, uint256 _commitDuration) public returns (uint256 pollID) {
+    address stakingAddress;
+    /**
+    @dev Initiates poll and emits PollCreate event
+    @param _quorumOption Users can decide if the winner is decided by the percentage majority out of 100 or whether the 'for' side has more votes than the 'against' side
+    @param _voteQuorum Assumes that the _quorumOption is false, passes in the percentage majority out of 100 that is required to win the vote
+    @param _voteAmount The amount of tokens minted/burned if poll is successful 
+    @param _commitDuration Length of the poll in seconds
+    @param _option Type of poll, option 1 is for minting tokens, option 2 is for burning tokens 
+    **/
+    function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _voteAmount, uint256 _commitDuration, uint256 _option) public returns (uint256 pollID) {
+        require ((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0));
+        require (_voteAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
         uint256 commitEndDate = block.timestamp.add(_commitDuration);
         pollNonce = pollNonce.add(1);
         Poll storage newPoll = pollMapping[pollNonce];
+        newPoll.option = _option;
+        newPoll.quorumOption = _quorumOption;
         newPoll.voteQuorum = _voteQuorum;
+        newPoll.voteAmount = _voteAmount;
         newPoll.commitEndDate = commitEndDate;
         newPoll.votesFor = 0;
         newPoll.votesAgainst = 0;
         newPoll.ongoing = true;
 
-        emit _PollCreated(_voteQuorum, commitEndDate, pollNonce, msg.sender);
+        emit _PollCreated(_voteAmount, commitEndDate, pollNonce, msg.sender);
         return pollNonce;
     }
 
@@ -59,23 +76,31 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         emit _VotingRightsGranted(voter);
     }
 
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        _transfer(_msgSender(), recipient, amount);
+        return true;
+    }
+
     function voteRevokation(address voter) public {
+        require(voter != address(0));
         revokeRole(VOTER_ROLE, voter);
         emit _VotingRightsRevoked(voter);
     }
 
     modifier voterCheck(address voter) {
+        require(voter != address(0));
         if (hasRole(VOTER_ROLE, voter) == false && balanceOf(voter) >= 1000) {
             voterAllocation(voter);
         }
         if (hasRole(VOTER_ROLE, voter) == true && balanceOf(voter) < 1000) {
            voteRevokation(voter); 
         }
-        require(hasRole(VOTER_ROLE, voter) || balanceOf(voter) >= 1000, "Only addresses that have balances of over 1000 tokens are able to vote");
+        require(hasRole(VOTER_ROLE, voter), "Only addresses that have balances of over 1000 tokens are able to vote");
         _;
     }
 
     function claimVote(address voter, uint256 pollID) public whenNotPaused voterCheck(voter) {
+        require(voter != address(0));
         uint256 claimable = pollMapping[pollID]._votesClaimed[voter].sub(999);
         require(claimable > 0, "Address has no votes available to claim");
         pollMapping[pollID]._votesClaimed[voter] = pollMapping[pollID]._votesClaimed[voter].add(claimable);
@@ -83,10 +108,12 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     }
 
     function numOfVotes(address voter, uint256 pollID) public view returns (uint256 votes) {
+        require(voter != address(0));
         return pollMapping[pollID]._votes[voter]; 
     }
 
     function makeVote(address voter, uint256 votesMade, uint256 pollID, uint256 side) public whenNotPaused voterCheck(voter) {
+        require(voter != address(0));
         require(pollMapping[pollID].ongoing = true);
         require(isNotExpired(pollID));
         require(pollMapping[pollID]._votes[voter] > 0, "Address has no votes currently, call function claimVote to claim a vote");
@@ -99,19 +126,38 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         }
         pollMapping[pollID]._votes[voter] = pollMapping[pollID]._votes[voter].sub(votesMade);
         emit _VoteMade(pollID, votesMade, voter); 
+        totalVotes[pollID] = totalVotes[pollID].add(1);
     }
 
     function results(uint256 pollID) public returns (bool passed) {
         endPoll(pollID);
         require(isNotExpired(pollID) == false);
         require(pollExists(pollID));
-        if (pollMapping[pollID].votesFor > pollMapping[pollID].votesAgainst) {
-            return (true);
-        } else if (pollMapping[pollID].votesFor < pollMapping[pollID].votesAgainst) {
-            return (false);
-        } else {
-            whenTie(pollID);
+        if (pollMapping[pollID].quorumOption == false) {
+            if (pollMapping[pollID].votesFor > pollMapping[pollID].votesAgainst) {
+                return (true);
+            } else if (pollMapping[pollID].votesFor < pollMapping[pollID].votesAgainst) {
+                return (false);
+            } else {
+                whenTie(pollID);
+            }
+        } else if (pollMapping[pollID].quorumOption == true) {
+            if (quorumCalc(pollID) >= pollMapping[pollID].voteQuorum) {
+                return (true);
+            } else if (quorumCalc(pollID) < pollMapping[pollID].voteQuorum) {
+                return  (false);
+            } else {
+                whenTie(pollID);
+            }
         }
+    }
+
+    function quorumCalc(uint256 pollID) public view returns (uint256 result) {
+        require (totalVotes[pollID] > 0);
+        require (pollExists(pollID), "Poll does not exist");
+        uint256 ans = pollMapping[pollID].votesFor.div(totalVotes[pollID]);
+        ans = ans.mul(100);
+        return ans;
     }
 
     function endPoll(uint pollID) public {
@@ -122,15 +168,30 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
 
     function whenTie(uint256 pollID) public view returns (string memory tied) {
         require(pollExists(pollID));
-        if (pollMapping[pollID].votesFor == pollMapping[pollID].votesAgainst) {
-            return ("Poll tied");
+        if (pollMapping[pollID].quorumOption == false) {
+            if (pollMapping[pollID].votesFor == pollMapping[pollID].votesAgainst) {
+                return ("Poll tied");
+            }
+        } else if (pollMapping[pollID].quorumOption == true) {
+            if (quorumCalc(pollID) == pollMapping[pollID].voteQuorum) {
+                return ("Poll tied");
+            }
         }
+    } 
+
+    function burnRewards (uint256 pollID) public payable {
+        require(pollMapping[pollID].option == 2);
+        require(pollMapping[pollID].ongoing == false);
+        burn(pollMapping[pollID].voteAmount);
+        emit _resultsGenerated(pollMapping[pollID].voteAmount, pollID);
     }
+        
 
     function mintRewards (uint256 pollID) public payable {
+        require(pollMapping[pollID].option == 1);
         require(pollMapping[pollID].ongoing == false);
-        _mint(msg.sender, pollMapping[pollID].voteQuorum);
-        emit _resultsGenerated(pollMapping[pollID].voteQuorum, pollID);  
+        _mint(msg.sender, pollMapping[pollID].voteAmount);
+        emit _resultsGenerated(pollMapping[pollID].voteAmount, pollID);  
     }
         
     
