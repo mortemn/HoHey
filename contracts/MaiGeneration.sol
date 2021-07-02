@@ -99,12 +99,12 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         _;
     }
 
-    function claimVote(address voter, uint256 pollID) public whenNotPaused voterCheck(voter) {
-        require(voter != address(0));
-        uint256 claimable = pollMapping[pollID]._votesClaimed[voter].sub(999);
+    function claimVote(uint256 pollID) public whenNotPaused voterCheck(msg.sender) {
+        require(msg.sender != address(0));
+        uint256 claimable = pollMapping[pollID]._votesClaimed[msg.sender].sub(999);
         require(claimable > 0, "Address has no votes available to claim");
-        pollMapping[pollID]._votesClaimed[voter] = pollMapping[pollID]._votesClaimed[voter].add(claimable);
-        pollMapping[pollID]._votes[voter] = pollMapping[pollID]._votes[voter].add(claimable);
+        pollMapping[pollID]._votesClaimed[msg.sender] = pollMapping[pollID]._votesClaimed[msg.sender].add(claimable);
+        pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].add(claimable);
     }
 
     function numOfVotes(address voter, uint256 pollID) public view returns (uint256 votes) {
@@ -112,20 +112,20 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         return pollMapping[pollID]._votes[voter]; 
     }
 
-    function makeVote(address voter, uint256 votesMade, uint256 pollID, uint256 side) public whenNotPaused voterCheck(voter) {
-        require(voter != address(0));
+    function makeVote(uint256 votesMade, uint256 pollID, uint256 side) public whenNotPaused voterCheck(msg.sender) {
+        require(msg.sender != address(0));
         require(pollMapping[pollID].ongoing = true);
         require(isNotExpired(pollID));
-        require(pollMapping[pollID]._votes[voter] > 0, "Address has no votes currently, call function claimVote to claim a vote");
-        require(votesMade <= pollMapping[pollID]._votes[voter]);
+        require(pollMapping[pollID]._votes[msg.sender] > 0, "Address has no votes currently, call function claimVote to claim a vote");
+        require(votesMade <= pollMapping[pollID]._votes[msg.sender]);
         require(side == 1 || side == 2);
         if (side == 1) {
             pollMapping[pollID].votesFor = pollMapping[pollID].votesFor.add(1);
         } else if (side == 2) {
             pollMapping[pollID].votesAgainst = pollMapping[pollID].votesAgainst.add(1);
         }
-        pollMapping[pollID]._votes[voter] = pollMapping[pollID]._votes[voter].sub(votesMade);
-        emit _VoteMade(pollID, votesMade, voter); 
+        pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(votesMade);
+        emit _VoteMade(pollID, votesMade, msg.sender); 
         totalVotes[pollID] = totalVotes[pollID].add(1);
     }
 
