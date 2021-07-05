@@ -12,6 +12,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
+    bytes32 public constant STAKER_ROLE = keccak256("STAKER_ROLE");
 
     event _VoteMade(uint256 indexed pollID, uint256 votes, address indexed voter);
     event _PollCreated(uint voteAmount, uint commitEndDate, uint indexed pollID, address indexed creator);
@@ -24,6 +25,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _setupRole(MINTER_ROLE, msg.sender);
         _setupRole(VOTER_ROLE, msg.sender);
+        _setupRole(STAKER_ROLE, msg.sender);
     }
 
     struct Poll {
@@ -37,12 +39,14 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         bool ongoing;
         mapping(address => uint256) _votesClaimed;
         mapping(address => uint256) _votes;
+        mapping(address => uint256) _side;
     }
 
     mapping (uint256 => Poll) public pollMapping;
     mapping (uint256 => uint256) public totalVotes;
     uint256 pollNonce = 0;
     address stakingAddress;
+
     /**
     @dev Initiates poll and emits PollCreate event
     @param _quorumOption Users can decide if the winner is decided by the percentage majority out of 100 or whether the 'for' side has more votes than the 'against' side
@@ -51,6 +55,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     @param _commitDuration Length of the poll in seconds
     @param _option Type of poll, option 1 is for minting tokens, option 2 is for burning tokens 
     **/
+
     function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _voteAmount, uint256 _commitDuration, uint256 _option) public returns (uint256 pollID) {
         require ((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0));
         require (_voteAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
@@ -76,12 +81,23 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         emit _VotingRightsGranted(voter);
     }
 
+    function revokeVote(uint256 amount, uint256 pollID) public {
+        require(msg.sender != address(0));
+        require(pollMapping[pollID].ongoing = true);
+        require(isNotExpired(pollID));
+        require(pollMapping[pollID]._votes[msg.sender] > 0, "Address has no votes currently, call function claimVote to claim a vote");
+        require(amount <= pollMapping[pollID]._votes[msg.sender]);
+        pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(amount);
+        totalVotes[pollID] = totalVotes[pollID].add(1);
+    }
+
     function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
 
-    function voteRevokation(address voter) public {
+    function voterRevokation(address voter) public {
+        require(hasRole(VOTER_ROLE, msg.sender));
         require(voter != address(0));
         revokeRole(VOTER_ROLE, voter);
         emit _VotingRightsRevoked(voter);
@@ -93,7 +109,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
             voterAllocation(voter);
         }
         if (hasRole(VOTER_ROLE, voter) == true && balanceOf(voter) < 1000) {
-           voteRevokation(voter); 
+           voterRevokation(voter); 
         }
         require(hasRole(VOTER_ROLE, voter), "Only addresses that have balances of over 1000 tokens are able to vote");
         _;
@@ -118,12 +134,14 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         require(isNotExpired(pollID));
         require(pollMapping[pollID]._votes[msg.sender] > 0, "Address has no votes currently, call function claimVote to claim a vote");
         require(votesMade <= pollMapping[pollID]._votes[msg.sender]);
+        require(pollMapping[pollID]._side[msg.sender] == 0 || pollMapping[pollID]._side[msg.sender] == side);
         require(side == 1 || side == 2);
         if (side == 1) {
             pollMapping[pollID].votesFor = pollMapping[pollID].votesFor.add(1);
         } else if (side == 2) {
             pollMapping[pollID].votesAgainst = pollMapping[pollID].votesAgainst.add(1);
         }
+        pollMapping[pollID]._side[msg.sender] = side;
         pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(votesMade);
         emit _VoteMade(pollID, votesMade, msg.sender); 
         totalVotes[pollID] = totalVotes[pollID].add(1);
