@@ -44,7 +44,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         uint256 option; // Option 1: Minting tokens; Option 2: Burning tokens
         bool ongoing; // Returns true if poll is still active
         mapping(address => uint256) _votesClaimed; // Amount of votes already claimed by the voter
-        mapping(address => bool) _participant;
+        mapping(address => bool) _participant; // Maps address of user to whether they have voted in an active poll
         mapping(address => uint256) _votes; // Amount of votes placed by the voter
         mapping(address => uint256) _side; // The side the voter is on if they already voted
     }
@@ -105,13 +105,13 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         require(msg.sender != address(0));
         require(pollMapping[pollID].ongoing = true);
         require(isNotExpired(pollID));
-        require(pollMapping[pollID]._votes[msg.sender] > 0, "Address has no votes currently, call function claimVote to claim a vote");
         require(amount <= pollMapping[pollID]._votes[msg.sender]);
         pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(amount);
+        pollMapping[pollID]._votesClaimed[msg.sender] = pollMapping[pollID]._votesClaimed[msg.sender].add(amount);
         if (pollMapping[pollID]._votes[msg.sender] == 0) {
             pollMapping[pollID]._participant[msg.sender] = false;
         }
-        totalVotes[pollID] = totalVotes[pollID].add(1);
+        totalVotes[pollID] = totalVotes[pollID].sub(amount);
     }
 
     /**
@@ -135,26 +135,50 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         emit _VotingRightsRevoked(voter);
     }
 
+    /**
+    @dev Checks if user has voter role
+    @param voter Address of voter
+    */
+
     modifier voterCheck(address voter) {
         require(hasRole(VOTER_ROLE, voter));
         _;
     }
 
-    function claimVote(uint256 pollID) public whenNotPaused voterCheck(msg.sender) {
+    /**
+    @dev Claims votes from existing staked tokens and stores available votes at _votes
+    @param pollID ID of vote
+    */
+
+    function claimVote(uint256 pollID) public voterCheck(msg.sender) {
         require(msg.sender != address(0));
-        uint256 claimable = stakedTotal[msg.sender]-pollMapping[pollID]._votesClaimed[msg.sender];
-        require(claimable >= 1000, "Address has no votes available to claim");
+        uint256 claimable = stakedTotal[msg.sender].sub(pollMapping[pollID]._votesClaimed[msg.sender]).sub(999);
+        require(claimable > 0, "Address has no votes available to claim");
         pollMapping[pollID]._votesClaimed[msg.sender] = pollMapping[pollID]._votesClaimed[msg.sender].add(claimable);
         pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].add(claimable);
         emit _VoteClaimed(msg.sender, claimable);
     }
+
+    /**
+    @dev Returns number of votes available to users
+    @param voter Address of requested voter
+    @param pollID ID of poll
+    */
 
     function numOfVotes(address voter, uint256 pollID) public view returns (uint256 votes) {
         require(voter != address(0));
         return pollMapping[pollID]._votes[voter]; 
     }
 
-    function makeVote(uint256 votesMade, uint256 pollID, uint256 side) public whenNotPaused voterCheck(msg.sender) {
+    /**
+    @dev Voters makes votes on corresponding polls, deducting their _votes and emitting _VoteMade event
+    @param votesMade Amount of votes going to be made
+    @param pollID ID of the poll
+    @param side The side of the poll the user wants to support (1: for; 2: against)
+    */
+
+
+    function makeVote(uint256 votesMade, uint256 pollID, uint256 side) public voterCheck(msg.sender) {
         require(msg.sender != address(0));
         require(pollMapping[pollID].ongoing = true);
         require(isNotExpired(pollID));
@@ -169,10 +193,15 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         }
         pollMapping[pollID]._side[msg.sender] = side;
         pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(votesMade);
-        emit _VoteMade(pollID, votesMade, msg.sender, side); 
         totalVotes[pollID] = totalVotes[pollID].add(1);
         pollMapping[pollID]._participant[msg.sender] = true;
+        emit _VoteMade(pollID, votesMade, msg.sender, side); 
     }
+
+    /**
+    @dev Returns whether the poll/ proposal passed the voting
+    @param pollID ID of the poll
+    */
 
     function results(uint256 pollID) public returns (bool passed) {
         endPoll(pollID);
@@ -197,6 +226,11 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         }
     }
 
+    /**
+    @dev Calculates the percentage of voters that supports the proposal
+    @param pollID ID of the poll
+    */
+
     function quorumCalc(uint256 pollID) public view returns (uint256 result) {
         require (totalVotes[pollID] > 0);
         require (pollExists(pollID), "Poll does not exist");
@@ -205,11 +239,21 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         return ans;
     }
 
+    /**
+    @dev Ends the poll instantly if necessary
+    @param pollID ID of the poll
+    */
+
     function endPoll(uint pollID) public {
         require(hasRole(PAUSER_ROLE, msg.sender));
         require(pollExists(pollID));
         pollMapping[pollID].ongoing = false;
     }
+
+    /**
+    @dev Returns Poll Tied string if the poll is tied
+    @param pollID ID of the poll
+    */
 
     function whenTie(uint256 pollID) public view returns (string memory tied) {
         require(pollExists(pollID));
@@ -224,21 +268,38 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         }
     } 
 
+    /**
+    @dev Burns the proposed amount of tokens after the poll has ended and passed
+    @param pollID ID of the poll
+    */
+
     function burnRewards (uint256 pollID) public payable {
         require(pollMapping[pollID].option == 2);
         require(pollMapping[pollID].ongoing == false);
+        _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].voteAmount);
         burn(pollMapping[pollID].voteAmount);
         emit _resultsGenerated(pollMapping[pollID].voteAmount, pollID);
     }
+
+    /**
+    @dev Mints the proposed amount of tokens after the poll has ended and passed
+    @param pollID ID of the poll
+    */
         
 
     function mintRewards (uint256 pollID) public payable {
         require(pollMapping[pollID].option == 1);
         require(pollMapping[pollID].ongoing == false);
+        _beforeTokenTransfer(address(0), msg.sender, pollMapping[pollID].voteAmount);
         _mint(msg.sender, pollMapping[pollID].voteAmount);
         emit _resultsGenerated(pollMapping[pollID].voteAmount, pollID);  
     }
-        
+
+    /**
+    @dev Adds time to the commit duration of the poll
+    @param pollID ID of the poll
+    @param timeAdded Amount of time to be added to the poll
+    */
     
     function addTime(uint256 pollID, uint256 timeAdded) public {
         require (pollExists(pollID)); 
@@ -246,9 +307,14 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         pollMapping[pollID].commitEndDate = pollMapping[pollID].commitEndDate.add(timeAdded); 
     }
 
-    function checkParticipation() public view returns(bool participating){
-        for (uint256 i = 0; i < pollNonce; i++) {
-            if (pollMapping[i].ongoing == true && pollMapping[i]._participant[msg.sender] == true) {
+    /**
+    @dev Checks if the address of the voter has participated in any active poll
+    @param voter Address of the voter
+    */
+
+    function checkParticipation(address voter) public view returns(bool participating){
+        for (uint256 i = 1; i < pollNonce; i++) {
+            if (pollMapping[i].ongoing == true && pollMapping[i]._participant[voter] == true) {
                 return true;
             }
         }
@@ -267,7 +333,6 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
 
     function _beforeTokenTransfer(address from, address to, uint256 amount)
         internal
-        whenNotPaused
         override
     {
         super._beforeTokenTransfer(from, to, amount);
@@ -276,11 +341,22 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     function mint(address to, uint256 amount) public {
         require(hasRole(MINTER_ROLE, msg.sender));
         _mint(to, amount);
+        _beforeTokenTransfer(address(0), msg.sender, amount);
     }
+
+    /**
+    @dev Checks if poll exists and returns a boolean value
+    @param _pollID ID of the poll
+    */
 
     function pollExists(uint256 _pollID) public view returns (bool exists) {
         return (_pollID != 0 && _pollID <= pollNonce);
     }
+
+    /**
+    @dev Checks of poll has ended or not
+    @param _pollID ID of the poll
+    */
 
     function pollEnded(uint256 _pollID) public view returns (bool ended) {
         require(pollExists(_pollID));
@@ -288,8 +364,13 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         return isNotExpired(pollMapping[_pollID].commitEndDate);
     }
 
+    /**
+    @dev Checks if a date has expired or not
+    @param _terminationDate The date for checking
+    */
+
     function isNotExpired(uint256 _terminationDate) public view returns (bool expired) {
-        return (block.timestamp > _terminationDate);
+        return (block.timestamp < _terminationDate);
     }
 
 }
