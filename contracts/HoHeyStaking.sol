@@ -26,6 +26,7 @@ contract HeyStake is Mai {
         require(hasRole(STAKER_ROLE, msg.sender), "Must have staker role to perform this action");
         require(amount <= stakedBalance[msg.sender], "Must withdraw amount within balance"); 
         require(stakedBalance[msg.sender].sub(amount) >= 1000, "A balance of higher than 1000 is required to maintain role of staker, if you wish to revoke the role of staker, use revokeStaker() function");
+        require(checkParticipation() == false, "You must not be participating in any vote in order to withdraw any staked tokens");
         transfer(msg.sender, amount);
         stakedBalance[msg.sender] = stakedBalance[msg.sender].sub(amount);
         emit _StakesWithdrawn(msg.sender, amount);
