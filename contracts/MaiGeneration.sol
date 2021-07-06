@@ -14,7 +14,12 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
     bytes32 public constant STAKER_ROLE = keccak256("STAKER_ROLE");
 
-    event _VoteMade(uint256 indexed pollID, uint256 votes, address indexed voter);
+    event _VoteMade(uint256 indexed pollID, uint256 votes, address indexed voter, uint256 side);
+    event _VoteRevoked(uint256 indexed pollID, uint256 votes, address indexed voter); 
+    event _VotingTimeAdded(uint256 indexed lengthExtended, uint256 indexed NewCommitDuration);
+    event _VoteEnded(uint256 indexed pollID);
+    event _RewardsMinted(uint256 indexed pollID, uint256 indexed amount);
+    event _RewardsBurned(uint256 indexed pollID, uint256 indexed amount);
     event _PollCreated(uint voteAmount, uint commitEndDate, uint indexed pollID, address indexed creator);
     event _VotingRightsGranted(address indexed voter);
     event _VotingRightsRevoked(address indexed voter);
@@ -76,7 +81,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     }
 
     function voterAllocation(address voter) public {
-        require(balanceOf(voter) >= 1000);
+        require(hasRole(STAKER_ROLE, msg.sender));
         grantRole(VOTER_ROLE, voter);
         emit _VotingRightsGranted(voter);
     }
@@ -104,14 +109,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
     }
 
     modifier voterCheck(address voter) {
-        require(voter != address(0));
-        if (hasRole(VOTER_ROLE, voter) == false && balanceOf(voter) >= 1000) {
-            voterAllocation(voter);
-        }
-        if (hasRole(VOTER_ROLE, voter) == true && balanceOf(voter) < 1000) {
-           voterRevokation(voter); 
-        }
-        require(hasRole(VOTER_ROLE, voter), "Only addresses that have balances of over 1000 tokens are able to vote");
+        require(hasRole(VOTER_ROLE, voter));
         _;
     }
 
@@ -143,7 +141,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         }
         pollMapping[pollID]._side[msg.sender] = side;
         pollMapping[pollID]._votes[msg.sender] = pollMapping[pollID]._votes[msg.sender].sub(votesMade);
-        emit _VoteMade(pollID, votesMade, msg.sender); 
+        emit _VoteMade(pollID, votesMade, msg.sender, side); 
         totalVotes[pollID] = totalVotes[pollID].add(1);
     }
 

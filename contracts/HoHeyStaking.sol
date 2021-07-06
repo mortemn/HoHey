@@ -6,10 +6,10 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 contract HeyStake is Mai {
     using SafeMath for uint256;
 
-    event _StakerGranted(address _to);
-    event _StakerRoleRevoked(address _account, uint256 _amountReturned);
-    event _StakesDeposited(address _account, uint256 _amount);
-    event _StakesWithdrawn(address _account, uint256 _amount);
+    event _StakerGranted(address to);
+    event _StakerRoleRevoked(address account, uint256 amountReturned);
+    event _StakesDeposited(address account, uint256 amount);
+    event _StakesWithdrawn(address account, uint256 amount);
 
     mapping(address => uint256) stakedBalance;
 
