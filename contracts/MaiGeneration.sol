@@ -213,7 +213,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
             } else if (pollMapping[pollID].votesFor < pollMapping[pollID].votesAgainst) {
                 return (false);
             } else {
-                whenTie(pollID);
+                return (false);
             }
         } else if (pollMapping[pollID].quorumOption == true) {
             if (quorumCalc(pollID) >= pollMapping[pollID].voteQuorum) {
@@ -221,7 +221,7 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
             } else if (quorumCalc(pollID) < pollMapping[pollID].voteQuorum) {
                 return  (false);
             } else {
-                whenTie(pollID);
+                return (false);
             }
         }
     }
@@ -249,24 +249,6 @@ contract Mai is ERC20, ERC20Burnable, AccessControl, Pausable{
         require(pollExists(pollID));
         pollMapping[pollID].ongoing = false;
     }
-
-    /**
-    @dev Returns Poll Tied string if the poll is tied
-    @param pollID ID of the poll
-    */
-
-    function whenTie(uint256 pollID) public view returns (string memory tied) {
-        require(pollExists(pollID));
-        if (pollMapping[pollID].quorumOption == false) {
-            if (pollMapping[pollID].votesFor == pollMapping[pollID].votesAgainst) {
-                return ("Poll tied");
-            }
-        } else if (pollMapping[pollID].quorumOption == true) {
-            if (quorumCalc(pollID) == pollMapping[pollID].voteQuorum) {
-                return ("Poll tied");
-            }
-        }
-    } 
 
     /**
     @dev Burns the proposed amount of tokens after the poll has ended and passed
