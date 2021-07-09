@@ -13,6 +13,7 @@ ReactDOM.render(
   <React.StrictMode>
     <Web3Provider>
       <App />
+      <Web3Updater />
     </Web3Provider>
   </React.StrictMode>,
   document.getElementById('root')
