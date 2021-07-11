@@ -3,18 +3,11 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import {
-  Provider as Web3Provider,
-  Updater as Web3Updater,
-} from "./contexts/Web3";
 import * as serviceWorker from "./serviceWorker";
 
 ReactDOM.render(
   <React.StrictMode>
-    <Web3Provider>
       <App />
-      <Web3Updater />
-    </Web3Provider>
   </React.StrictMode>,
   document.getElementById('root')
 );
