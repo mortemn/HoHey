@@ -57551,14 +57551,464 @@
   },
   "networks": {
     "5777": {
-      "events": {},
+      "events": {
+        "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "owner",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "spender",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            }
+          ],
+          "name": "Approval",
+          "type": "event"
+        },
+        "0x62e78cea01bee320cd4e420270b5ea74000d11b0c9f74754ebdbfc544b05a258": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            }
+          ],
+          "name": "Paused",
+          "type": "event"
+        },
+        "0xbd79b86ffe0ab8e8776151514217cd7cacd52c909f66475c3af44e129f0b00ff": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "role",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "previousAdminRole",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "newAdminRole",
+              "type": "bytes32"
+            }
+          ],
+          "name": "RoleAdminChanged",
+          "type": "event"
+        },
+        "0x2f8788117e7eff1d82e926ec794901d17c78024a50270940304540a733656f0d": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "role",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "sender",
+              "type": "address"
+            }
+          ],
+          "name": "RoleGranted",
+          "type": "event"
+        },
+        "0xf6391f5c32d9c69d2a47ea670b442974b53935d1edc7fd64eb21e047a839171b": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "bytes32",
+              "name": "role",
+              "type": "bytes32"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "sender",
+              "type": "address"
+            }
+          ],
+          "name": "RoleRevoked",
+          "type": "event"
+        },
+        "0x8030e83b04d87bef53480e26263266d6ca66863aa8506aca6f2559d18aa1cb67": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            }
+          ],
+          "name": "Snapshot",
+          "type": "event"
+        },
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "from",
+              "type": "address"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "to",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            }
+          ],
+          "name": "Transfer",
+          "type": "event"
+        },
+        "0x5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            }
+          ],
+          "name": "Unpaused",
+          "type": "event"
+        },
+        "0xa780cb8437215d835d6296c681503f759ac98b8f069b8bdc2ec57a92054ff769": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "minStake",
+              "type": "uint256"
+            }
+          ],
+          "name": "_MinimumStakeChanged",
+          "type": "event"
+        },
+        "0x75c3234b322da18df8c948bde9b9983e5a43633c4e2647d4d9f4f15c0706f05d": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "votedTokenAmount",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "end",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "creator",
+              "type": "address"
+            }
+          ],
+          "name": "_PollCreated",
+          "type": "event"
+        },
+        "0x11cfc030f63374c0d688f66c49bbd6b1e3950cc652b284ca51c88c62e9d7bae6": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "_RewardsBurned",
+          "type": "event"
+        },
+        "0xd20688110a4cb3eec8f0289b0b95c46d8f3e02bbd09403b8656030c2cbcbe69d": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "_RewardsMinted",
+          "type": "event"
+        },
+        "0xaa9b7cbce69f378b88683439602b2857dc079ec95e5996ecd5e84df0673de4d7": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "to",
+              "type": "address"
+            }
+          ],
+          "name": "_StakerGranted",
+          "type": "event"
+        },
+        "0xcb71ce4aef17d5694e262b4bedec3b5f7ea68f25621d775f80bc72e78d27692d": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amountReturned",
+              "type": "uint256"
+            }
+          ],
+          "name": "_StakerRoleRevoked",
+          "type": "event"
+        },
+        "0x91dd5382838389dd317d2f661bec79d34c5b6abd4d2d475f84079da548c030fc": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "_StakesDeposited",
+          "type": "event"
+        },
+        "0x636cb222c0a14b941cff2b7b16a3920b7043e92dabbf4ebe5104f45b7c5ea23c": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "account",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            }
+          ],
+          "name": "_StakesWithdrawn",
+          "type": "event"
+        },
+        "0x11121ac798069fb07833ce3bd6cbfb51fec926c61a652138d3241566fe724079": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "voter",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amountClaimed",
+              "type": "uint256"
+            }
+          ],
+          "name": "_VoteClaimed",
+          "type": "event"
+        },
+        "0xd4cd8e403dac03b05f1bc674d43f3d687437f13e91ad529ffcf5a3efaf4843c5": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            }
+          ],
+          "name": "_VoteEnded",
+          "type": "event"
+        },
+        "0x5996e6b79a799eac35fb8f87a5ec15485d68232f99e6a9a13118feb7b77adb80": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "votes",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "voter",
+              "type": "address"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "side",
+              "type": "uint256"
+            }
+          ],
+          "name": "_VoteMade",
+          "type": "event"
+        },
+        "0x11e25c992c7c76bb87d34a0379dc3c0ba26cdbe43300ef47ad86dd42d22b7298": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "votes",
+              "type": "uint256"
+            },
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "voter",
+              "type": "address"
+            }
+          ],
+          "name": "_VoteRevoked",
+          "type": "event"
+        },
+        "0x3025407ee9b066f6cd97886b0c47bda6b6ebbb42d2c7574284f5814cfd3a504a": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "voter",
+              "type": "address"
+            }
+          ],
+          "name": "_VotingRightsGranted",
+          "type": "event"
+        },
+        "0xc8f0ca04e3a4bee64fa8f12ab2c36bf665502f928567c2adfbbcc4ad796ed269": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": true,
+              "internalType": "address",
+              "name": "voter",
+              "type": "address"
+            }
+          ],
+          "name": "_VotingRightsRevoked",
+          "type": "event"
+        },
+        "0x815e966a30d910f09bbe731021156b873eaca737ddd8f638c08f40c47d4c55da": {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "amountMinted",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "pollID",
+              "type": "uint256"
+            }
+          ],
+          "name": "_resultsGenerated",
+          "type": "event"
+        }
+      },
       "links": {},
-      "address": "0xaa3cAc2596bdCaD69612eC9c4Eb4055Bd522c14d",
-      "transactionHash": "0xbfb5084aac5e3dc24036b93f001747efc4586fe9061176a72e49cf7237c8b0d1"
+      "address": "0x911990067a345A9e866460f82403ffedC56388c1",
+      "transactionHash": "0x4baa2e4a3145a4f06bb49dcdd463ec8667d225f9fa56bf2cd543c233fdce5898"
     }
   },
   "schemaVersion": "3.4.1",
-  "updatedAt": "2021-07-16T08:06:19.245Z",
+  "updatedAt": "2021-07-16T08:11:29.309Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",
