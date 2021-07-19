@@ -187,13 +187,13 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param _action Type of poll, action 1 is for minting tokens, action 2 is for burning tokens, action 3 is for transfering tokens, action 4 is for taking a snapshot.
     */
 
-    function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _action, uint256 _votedTokenAmount, uint256 _commitDuration, address _pollStarter) public returns (uint256 pollID) {
+    function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _action, uint256 _votedTokenAmount, uint256 _commitDuration) public returns (uint256 pollID) {
         require ((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0));
         require (_votedTokenAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
         uint256 end = block.timestamp.add(_commitDuration);
         pollNonce = pollNonce.add(1);
         Poll storage newPoll = pollMapping[pollNonce];
-        newPoll.pollStarter = _pollStarter;
+        newPoll.pollStarter = msg.sender;
         newPoll.start = block.timestamp;
         newPoll.action = _action;
         newPoll.quorumOption = _quorumOption;
