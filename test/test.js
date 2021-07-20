@@ -57,10 +57,10 @@ describe("mai contract testing", function () {
 
     describe("for a non zero account", function () {
       beforeEach("minting", async function () {
-        const { logs } = await this.mai.mint(receiver, amount, {
+        const receipt = await this.mai.mint(receiver, amount, {
           from: owner,
         });
-        this.logs = logs;
+        this.receipt = receipt;
       });
       it("increments receiver balance", async function () {
         expect(await this.mai.balanceOf(receiver)).to.be.bignumber.equal(
@@ -69,12 +69,37 @@ describe("mai contract testing", function () {
       });
 
       it("emits Transfer event", async function () {
-        const event = expectEvent.inLogs(this.logs, "Transfer", {
+        const event = expectEvent(this.receipt, "Transfer", {
           from: constants.ZERO_ADDRESS,
           to: receiver,
         });
 
         expect(event.args.value).to.be.bignumber.equal(amount);
+      });
+    });
+  });
+  describe("polls", function () {
+    const [owner, sender, receiver] = accounts;
+    beforeEach(async function () {
+      this.value = new BN(1);
+      this.mai = await MaiContract.new({ from: owner });
+      this.receipt = await this.mai.startPoll(false, 0, 1, 1000, 1000, {
+        from: owner,
+      });
+    });
+    it("starts a poll", async function () {
+      expectEvent(this.receipt, "_PollCreated", {
+        votedTokenAmount: "1000",
+        pollID: "1",
+        creator: owner,
+      });
+    });
+    it("increments and starts another poll", async function () {
+      const receipt = await this.mai.startPoll(false, 0, 1, 1000, 1000, {
+        from: owner,
+      });
+      expectEvent(receipt, "_PollCreated", {
+        pollID: "2",
       });
     });
   });
