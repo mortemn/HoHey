@@ -64,12 +64,6 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         super._beforeTokenTransfer(from, to, amount);
     }
 
-    function mint(address to, uint256 amount) onlyOwner internal {
-        _mint(to, amount);
-        _beforeTokenTransfer(address(0), msg.sender, amount);
-        emit _Minted(to, amount);
-    }
-
     // Staking
 
     event _StakerGranted(address to);
@@ -287,6 +281,11 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         pollMapping[pollID]._votesClaimed[voter] = pollMapping[pollID]._votesClaimed[voter].add(claimable);
         pollMapping[pollID]._votes[voter] = pollMapping[pollID]._votes[voter].add(claimable);
         emit _VoteClaimed(voter, claimable);
+    }
+
+    function mint(address account, uint256 amount) onlyOwner public {
+        _mint(account, amount);
+        emit _Minted(account, amount);
     }
 
     /**
