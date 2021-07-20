@@ -29,7 +29,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     event _PollCreated(uint votedTokenAmount, uint end, uint indexed pollID, address indexed creator);
     event _VotingRightsGranted(address indexed voter);
     event _VotingRightsRevoked(address indexed voter);
-    event _resultsGenerated(uint256 amountMinted, uint256 pollID);
+    event _ResultsGenerated(uint256 amountMinted, uint256 pollID);
+    event _Minted(address indexed to, uint256 amount);
 
     constructor() ERC20("Mai", "MAI") {
         _mint(msg.sender, 10**12 * 10 ** decimals());
@@ -66,6 +67,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     function mint(address to, uint256 amount) onlyOwner internal {
         _mint(to, amount);
         _beforeTokenTransfer(address(0), msg.sender, amount);
+        emit _Minted(to, amount);
     }
 
     // Staking
@@ -391,7 +393,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(address(0), msg.sender, pollMapping[pollID].votedTokenAmount);
         _mint(msg.sender, pollMapping[pollID].votedTokenAmount);
-        emit _resultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);  
+        emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);  
     }
 
     /**
@@ -405,7 +407,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].votedTokenAmount);
         burnFrom(msg.sender, pollMapping[pollID].votedTokenAmount);
-        emit _resultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
+        emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
     }
 
 
@@ -417,7 +419,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         burn(pollMapping[pollID].votedTokenAmount);
         _transfer(_msgSender(), recipient, pollMapping[pollID].votedTokenAmount);
         
-        emit _resultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
+        emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
     }
 
     function takeSnapshot(uint256 pollID) onlyOwner public virtual {
@@ -468,7 +470,5 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     function isNotExpired(uint256 _terminationDate) public view returns (bool expired) {
         return (block.timestamp < _terminationDate);
     }
-
-    
 }
 
