@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "./MaiToken.sol";
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
    
@@ -26,10 +25,10 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     event _VoteEnded(uint256 indexed pollID);
     event _RewardsMinted(uint256 indexed pollID, uint256 indexed amount);
     event _RewardsBurned(uint256 indexed pollID, uint256 indexed amount);
-    event _PollCreated(uint votedTokenAmount, uint end, uint indexed pollID, address indexed creator);
+    event _PollCreated(uint256 votedTokenAmount, uint256 end, uint256 indexed pollID, address indexed creator);
     event _VotingRightsGranted(address indexed voter);
     event _VotingRightsRevoked(address indexed voter);
-    event _ResultsGenerated(uint256 amountMinted, uint256 pollID);
+    event _ResultsGenerated(uint256 amount, uint256 pollID);
     event _Minted(address indexed to, uint256 amount);
 
     constructor() ERC20("Mai", "MAI") {
@@ -38,12 +37,21 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         _setupRole(OWNER_ROLE, msg.sender);
         _setupRole(PAUSER_ROLE, msg.sender);
         _setupRole(SNAPSHOT_ROLE, msg.sender);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     modifier onlyOwner() {
         require(hasRole(OWNER_ROLE, msg.sender) || msg.sender == stakingAddress);
         _;
     }
+
+    modifier checkTime(uint256 pollID) {
+      if (pollEnded(pollID) == true && pollMapping[pollID].ongoing == true) {
+        pollMapping[pollID].ongoing = false;
+      } 
+      _;
+    }
+      
 
     function pause() onlyOwner internal {
         _pause();
@@ -86,6 +94,15 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     }
 
     /**
+    @dev sets staking address for testing only
+    @param staking Staking Address
+    */
+
+    function setStakingAddress(address staking) onlyOwner public {
+      stakingAddress = staking;
+    }
+
+    /**
     @dev Allows users to stake, adding their respective amount of tokens to the staked balance
     @param amount Amount of tokens used in the stake pool
     */
@@ -121,7 +138,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     function deposit(uint256 amount) payable public {
         require(hasRole(STAKER_ROLE, msg.sender), "Must have staker role to perform this action");
-        transferFrom(msg.sender, stakingAddress, amount);
+        transfer(stakingAddress, amount);
         stakedBalance[msg.sender] = stakedBalance[msg.sender].add(amount);
         emit _StakesDeposited(msg.sender, amount);
     }
@@ -161,6 +178,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         uint256 votesAgainst; // Amount of votes countering the proposal
         uint256 action; // action 1: Minting tokens; action 2: Burning tokens; action 3: Transfering tokens; action 4: snapshot;
         bool ongoing; // Returns true if poll is still active
+        bool rewardsClaimed; // Stores if the rewards were already claimed
         mapping(address => uint256) _votesClaimed; // Amount of votes already claimed by the voter
         mapping(address => bool) _participant; // Maps address of user to whether they have voted in an active poll
         mapping(address => uint256) _votes; // Amount of votes placed by the voter
@@ -179,14 +197,15 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param _quorumOption Users can decide if the winner is decided by the percentage majority out of 100 or whether the 'for' side has more votes than the 'against' side
     @param _voteQuorum Assumes that the _quorumOption is false, passes in the percentage majority out of 100 that is required to win the vote
     @param _votedTokenAmount The amount of tokens minted/burned if poll is successful 
-    @param _commitDuration Length of the poll in seconds
+    @param _commitDuration Length of the poll in days
     @param _action Type of poll, action 1 is for minting tokens, action 2 is for burning tokens, action 3 is for transfering tokens, action 4 is for taking a snapshot.
     */
 
     function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _action, uint256 _votedTokenAmount, uint256 _commitDuration) public returns (uint256 pollID) {
-        require ((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0));
+        require(hasRole(STAKER_ROLE, msg.sender));
+        require (((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0)), "Quorum must either be allowed with a vote quorum number or disabled without a vote quorum number");
         require (_votedTokenAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
-        uint256 end = block.timestamp.add(_commitDuration);
+        uint256 end = block.timestamp.add(_commitDuration.mul(1 days));
         pollNonce = pollNonce.add(1);
         Poll storage newPoll = pollMapping[pollNonce];
         newPoll.pollStarter = msg.sender;
@@ -195,6 +214,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         newPoll.quorumOption = _quorumOption;
         newPoll.voteQuorum = _voteQuorum;
         newPoll.votedTokenAmount = _votedTokenAmount;
+        newPoll.rewardsClaimed = false;
         newPoll.end = end;
         newPoll.votesFor = 0;
         newPoll.votesAgainst = 0;
@@ -274,7 +294,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param pollID ID of vote
     */
 
-    function claimVote(uint256 pollID, address voter) public voterCheck(voter) {  // msg.sender is usually for contracts, not addresses. So here, it is change(d) to voter
+    function claimVote(uint256 pollID, address voter) public checkTime(pollID) voterCheck(voter) {  // msg.sender is usually for contracts, not addresses. So here, it is change(d) to voter
         require(voter != address(0));
         uint256 claimable = stakedTotal[voter].sub(pollMapping[pollID]._votesClaimed[voter]).sub(minStake - 1);
         require(claimable > 0, "Address has no votes available to claim");
@@ -294,7 +314,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param pollID ID of poll
     */
 
-    function numOfVotes(address voter, uint256 pollID) public view returns (uint256 votes) {
+    function numOfVotes(address voter, uint256 pollID) public checkTime(pollID) returns  (uint256 votes) {
         require(voter != address(0));
         return pollMapping[pollID]._votes[voter]; 
     }
@@ -307,14 +327,13 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     */
 
 
-    function makeVote(uint256 votesMade, uint256 pollID, uint256 side, address voter) public voterCheck(voter) {
-        require(voter != address(0));
-        require(pollMapping[pollID].ongoing = true);
-        require(isNotExpired(pollID));
+    function makeVote(uint256 votesMade, uint256 pollID, uint256 side, address voter) public checkTime(pollID) voterCheck(voter) {
+        require(voter != address(0), "Must be a non-zero address");
+        require(pollMapping[pollID].ongoing = true, "Must be an ongoing poll");
         require(pollMapping[pollID]._votes[voter] > 0, "Address has no votes currently, call function claimVote to claim a vote");
-        require(votesMade <= pollMapping[pollID]._votes[voter]);
-        require(pollMapping[pollID]._side[voter] == 0 || pollMapping[pollID]._side[voter] == side);
-        require(side == 1 || side == 2);
+        require(votesMade <= pollMapping[pollID]._votes[voter], "You do not have enough votes to do this action");
+        require(pollMapping[pollID]._side[voter] == 0 || pollMapping[pollID]._side[voter] == side, "You have voted for another side before");
+        require(side == 1 || side == 2, "Invalid side");
         if (side == 1) {
             pollMapping[pollID].votesFor = pollMapping[pollID].votesFor.add(1);
         } else if (side == 2) {
@@ -333,7 +352,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     */
     // ties are understood as rejections
 
-    function results(uint256 pollID) public returns (bool passed) {
+    function results(uint256 pollID) public checkTime(pollID) returns (bool passed) {
         endPoll(pollID);
         require(isNotExpired(pollID) == false);
         require(pollExists(pollID));
@@ -361,7 +380,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param pollID ID of the poll
     */
 
-    function quorumCalc(uint256 pollID) public view returns (uint256 result) {
+    function quorumCalc(uint256 pollID) public checkTime(pollID) returns  (uint256 result) {
         require (totalVotes[pollID] > 0);
         require (pollExists(pollID), "Poll does not exist");
         uint256 ans = pollMapping[pollID].votesFor.div(totalVotes[pollID]);
@@ -374,10 +393,20 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param pollID ID of the poll
     */
 
-    function endPoll(uint pollID) public {
-        require(hasRole(PAUSER_ROLE, msg.sender));
+    function endPoll(uint pollID) onlyOwner checkTime(pollID) public {
         require(pollExists(pollID));
         pollMapping[pollID].ongoing = false;
+    }
+
+    /**
+    @dev can be called by other claim mint, burn or transaction functions
+    @param pollID ID of the poll
+    */
+    
+
+    function _claimRewards(uint256 pollID) checkTime(pollID) public {
+      require(pollMapping[pollID].rewardsClaimed == false, "Rewards already claimed");
+      pollMapping[pollID].rewardsClaimed = true;
     }
 
     /**
@@ -386,8 +415,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     */
         
 
-    function mintRewards (uint256 pollID) onlyOwner payable public {
-        require(hasRole(OWNER_ROLE, msg.sender));
+    function mintRewards (uint256 pollID) checkTime(pollID) onlyOwner payable public {
+        _claimRewards(pollID);
         require(pollMapping[pollID].action == 1);
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(address(0), msg.sender, pollMapping[pollID].votedTokenAmount);
@@ -400,8 +429,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param pollID ID of the poll
     */
 
-    function burnRewards (uint256 pollID) onlyOwner payable public { 
-        require(hasRole(OWNER_ROLE, msg.sender));
+    function burnRewards (uint256 pollID) checkTime(pollID) onlyOwner payable public { 
+        _claimRewards(pollID);
         require(pollMapping[pollID].action == 2);
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].votedTokenAmount);
@@ -410,8 +439,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     }
 
 
-    function transferRewards(uint256 pollID, address recipient) onlyOwner public virtual {
-        require(hasRole(OWNER_ROLE, msg.sender));
+    function transferRewards(uint256 pollID, address recipient) checkTime(pollID) onlyOwner public virtual {
+        _claimRewards(pollID);
         require(pollMapping[pollID].action == 3);
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].votedTokenAmount);
