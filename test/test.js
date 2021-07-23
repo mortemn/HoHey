@@ -16,55 +16,63 @@ const OWNER_ROLE = web3.utils.soliditySha3("OWNER_ROLE");
 const PAUSER_ROLE = web3.utils.soliditySha3("PAUSER_ROLE");
 const SNAPSHOT_ROLE = web3.utils.soliditySha3("SNAPSHOT_ROLE");
 const VOTER_ROLE = web3.utils.soliditySha3("VOTER_ROLE");
+const [owner, sender, receiver, staking] = accounts;
+const amount = new BN(50);
 
 describe("mai contract testing", function () {
   describe("transactions", function () {
-    const [owner, sender, receiver] = accounts;
     beforeEach(async function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
     });
-    it("should revert when transferring tokens to the zero address", async function () {
-      await expectRevert(
-        this.mai.transfer(constants.ZERO_ADDRESS, this.value, { from: sender }),
-        "ERC20: transfer to the zero address"
-      );
-    });
-    it("should emit a Transfer event on successful transfers", async function () {
-      const receipt = await this.mai.transfer(receiver, this.value, {
-        from: owner,
-      });
-      expectEvent(receipt, "Transfer", {
-        from: owner,
-        to: receiver,
-        value: this.value,
+    describe("zero accounts", function () {
+      it("should revert when transferring tokens to the zero account", async function () {
+        await expectRevert(
+          this.mai.transfer(constants.ZERO_ADDRESS, this.value, {
+            from: sender,
+          }),
+          "ERC20: transfer to the zero address"
+        );
       });
     });
-    it("should update balances on successful transfers (big numbers)", async function () {
-      this.mai.transfer(receiver, this.value, { from: owner });
+    describe("non-zero accounts", function () {
+      it("should emit a Transfer event on successful transfers", async function () {
+        const receipt = await this.mai.transfer(receiver, this.value, {
+          from: owner,
+        });
+        expectEvent(receipt, "Transfer", {
+          from: owner,
+          to: receiver,
+          value: this.value,
+        });
+      });
+      it("should update balances on successful transfers (big numbers)", async function () {
+        this.mai.transfer(receiver, this.value, { from: owner });
 
-      // BN assertions are automatically available via chai-bn (if using Chai)
-      expect(await this.mai.balanceOf(receiver)).to.be.bignumber.equal(
-        this.value
-      );
+        // BN assertions are automatically available via chai-bn (if using Chai)
+        expect(await this.mai.balanceOf(receiver)).to.be.bignumber.equal(
+          this.value
+        );
+      });
     });
   });
   describe("minting", function () {
-    const [owner, sender, receiver] = accounts;
-    beforeEach(async function () {
-      this.value = new BN(1);
-      this.mai = await MaiContract.new({ from: owner });
+    describe("zero accounts", function () {
+      beforeEach(async function () {
+        this.value = new BN(1);
+        this.mai = await MaiContract.new({ from: owner });
+      });
+      it("should revert when minting to a zero address", async function () {
+        await expectRevert(
+          this.mai.mint(constants.ZERO_ADDRESS, amount, { from: owner }),
+          "ERC20: mint to the zero address"
+        );
+      });
     });
-    const amount = new BN(50);
-    it("should revert when minting to a zero address", async function () {
-      await expectRevert(
-        this.mai.mint(constants.ZERO_ADDRESS, amount, { from: owner }),
-        "ERC20: mint to the zero address"
-      );
-    });
-
-    describe("should work for a non zero account", function () {
+    describe("non-zero accounts", function () {
       beforeEach("minting", async function () {
+        this.value = new BN(1);
+        this.mai = await MaiContract.new({ from: owner });
         const receipt = await this.mai.mint(receiver, amount, {
           from: owner,
         });
@@ -87,7 +95,6 @@ describe("mai contract testing", function () {
     });
   });
   describe("polls", function () {
-    const [owner, sender, receiver, staking] = accounts;
     beforeEach(async function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
@@ -96,7 +103,6 @@ describe("mai contract testing", function () {
       });
       await this.mai.setStakingAddress(staking, { from: owner });
     });
-    const amount = new BN(50);
     it("should start a poll", async function () {
       expectEvent(this.receipt, "_PollCreated", {
         votedTokenAmount: "1000",
@@ -169,7 +175,6 @@ describe("mai contract testing", function () {
     });
   });
   describe("roles", function () {
-    const [owner, sender, receiver] = accounts;
     beforeEach(async function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
@@ -190,7 +195,6 @@ describe("mai contract testing", function () {
     });
   });
   describe("staking", function () {
-    const [owner, sender, receiver, staking] = accounts;
     beforeEach(async function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
@@ -199,7 +203,6 @@ describe("mai contract testing", function () {
       });
       await this.mai.setStakingAddress(staking, { from: owner });
     });
-    const amount = new BN(50);
     it("should deposit 50 tokens to staking address", async function () {
       const stakeReceipt = await this.mai.deposit(amount, { from: owner });
       await expectEvent(stakeReceipt, "_StakesDeposited", {
