@@ -7,6 +7,7 @@ const {
   constants, // Common constants, like the zero address and largest integers
   expectEvent, // Assertions for emitted events
   expectRevert, // Assertions for transactions that should fail
+  time,
 } = require("@openzeppelin/test-helpers");
 const DEFAULT_ADMIN_ROLE =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -23,13 +24,13 @@ describe("mai contract testing", function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
     });
-    it("reverts when transferring tokens to the zero address", async function () {
+    it("should revert when transferring tokens to the zero address", async function () {
       await expectRevert(
         this.mai.transfer(constants.ZERO_ADDRESS, this.value, { from: sender }),
         "ERC20: transfer to the zero address"
       );
     });
-    it("emits a Transfer event on successful transfers", async function () {
+    it("should emit a Transfer event on successful transfers", async function () {
       const receipt = await this.mai.transfer(receiver, this.value, {
         from: owner,
       });
@@ -39,7 +40,7 @@ describe("mai contract testing", function () {
         value: this.value,
       });
     });
-    it("updates balances on successful transfers (big numbers)", async function () {
+    it("should update balances on successful transfers (big numbers)", async function () {
       this.mai.transfer(receiver, this.value, { from: owner });
 
       // BN assertions are automatically available via chai-bn (if using Chai)
@@ -55,27 +56,27 @@ describe("mai contract testing", function () {
       this.mai = await MaiContract.new({ from: owner });
     });
     const amount = new BN(50);
-    it("rejects a null account", async function () {
+    it("should revert when minting to a zero address", async function () {
       await expectRevert(
         this.mai.mint(constants.ZERO_ADDRESS, amount, { from: owner }),
         "ERC20: mint to the zero address"
       );
     });
 
-    describe("for a non zero account", function () {
+    describe("should work for a non zero account", function () {
       beforeEach("minting", async function () {
         const receipt = await this.mai.mint(receiver, amount, {
           from: owner,
         });
         this.receipt = receipt;
       });
-      it("increments receiver balance", async function () {
+      it("should increment receiver balance", async function () {
         expect(await this.mai.balanceOf(receiver)).to.be.bignumber.equal(
           amount
         );
       });
 
-      it("emits Transfer event", async function () {
+      it("should emit transfer event", async function () {
         const event = expectEvent(this.receipt, "Transfer", {
           from: constants.ZERO_ADDRESS,
           to: receiver,
@@ -95,14 +96,15 @@ describe("mai contract testing", function () {
       });
       await this.mai.setStakingAddress(staking, { from: owner });
     });
-    it("starts a poll", async function () {
+    const amount = new BN(50);
+    it("should start a poll", async function () {
       expectEvent(this.receipt, "_PollCreated", {
         votedTokenAmount: "1000",
         pollID: "1",
         creator: owner,
       });
     });
-    it("increments and starts another poll", async function () {
+    it("should increment and start another poll", async function () {
       const receipt = await this.mai.startPoll(false, 0, 1, 1000, 1000, {
         from: owner,
       });
@@ -110,44 +112,50 @@ describe("mai contract testing", function () {
         pollID: "2",
       });
     });
-    it("inputs 0 votedTokenAmount", async function () {
+    it("should input 0 votedTokenAmount", async function () {
       await expectRevert(
         this.mai.startPoll(false, 0, 1, 0, 1000, { from: owner }),
         "The amount of tokens to be burned/ minted must be larger than 0"
       );
     });
-    it("pass in true quorum option with voteQuorum equal to 1", async function () {
+    it("should pass in true quorum option with voteQuorum equal to 1", async function () {
       await expectRevert(
         this.mai.startPoll(true, 0, 1, 1000, 1000, { from: owner }),
         "Quorum must either be allowed with a vote quorum number or disabled without a vote quorum number"
       );
     });
-    it("pass in false quorum option with voteQuorum larger than 1", async function () {
+    it("should pass in false quorum option with voteQuorum larger than 1", async function () {
       await expectRevert.unspecified(
         this.mai.startPoll(false, 60, 1, 1000, 1000, { from: owner })
       );
     });
-    it("owner has staker role", async function () {
+    it("owner should have a staker role", async function () {
       await this.mai.hasRole(STAKER_ROLE, owner);
     });
-    it("able to allocate voter", async function () {
+    it("should be able to allocate voter", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
       await expect(await this.mai.hasRole(VOTER_ROLE, owner)).equal(true);
     });
-    it("able to mint rewards", async function () {
+    it("should claim a vote", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
-      await this.mai.deposit(this.value, { from: owner });
-      await this.mai.claimVote(2, owner, { from: owner });
-      await this.mai.makeVote(2, 1, 1, owner, { from: owner });
+      await this.mai.deposit(1001, { from: owner });
+      await this.mai.claimVote(1, owner, { from: owner });
+    });
+    it("should make a vote", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(2000, { from: owner });
+      await this.mai.claimVote(1, owner, { from: owner });
+      await this.mai.makeVote(1, 1, 1, owner, { from: owner });
+    });
+    it("should be able to mint rewards", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(2000, { from: owner });
+      await this.mai.claimVote(1, owner, { from: owner });
+      await this.mai.makeVote(1, 1, 1, owner, { from: owner });
       await time.increase(5);
       await this.mai.mintRewards(1, { from: owner });
     });
-    it("claims a vote", async function () {
-      await this.mai.voterAllocation(owner, { from: owner });
-      await this.mai.deposit(1001, { from: owner });
-      await this.mai.claimVote(1, owner);
-    });
-    it("only able to claim reward once", async function () {
+    it("should only be able to claim reward once", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
       await this.mai.deposit(1001, { from: owner });
       await this.mai.claimVote(1, owner);
@@ -166,12 +174,12 @@ describe("mai contract testing", function () {
       this.value = new BN(1);
       this.mai = await MaiContract.new({ from: owner });
     });
-    it("deployer has default admin role", async function () {
+    it("deployer should have default admin role", async function () {
       await expect(await this.mai.hasRole(DEFAULT_ADMIN_ROLE, owner)).to.equal(
         true
       );
     });
-    it("owner has every role", async function () {
+    it("owner should have every role", async function () {
       await expect(await this.mai.hasRole(DEFAULT_ADMIN_ROLE, owner)).to.equal(
         true
       );
@@ -191,12 +199,19 @@ describe("mai contract testing", function () {
       });
       await this.mai.setStakingAddress(staking, { from: owner });
     });
-    it("deposits 1000 tokens to staking address", async function () {
-      const stakeReceipt = await this.mai.deposit(1000, { from: owner });
-      expectEvent(stakeReceipt, "_StakesDeposited", {
+    const amount = new BN(50);
+    it("should deposit 50 tokens to staking address", async function () {
+      const stakeReceipt = await this.mai.deposit(amount, { from: owner });
+      await expectEvent(stakeReceipt, "_StakesDeposited", {
         account: owner,
-        amount: "1000",
+        amount: amount,
       });
+      await expect(
+        await this.mai.viewStakedBalance({ from: owner })
+      ).to.be.bignumber.equal(amount);
+      await expect(
+        await this.mai.viewStakedTotal({ from: owner })
+      ).to.be.bignumber.equal(amount);
     });
   });
 });

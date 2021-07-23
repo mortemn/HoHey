@@ -128,6 +128,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(checkParticipation(msg.sender) == false, "You must not be participating in any vote in order to withdraw any staked tokens");
         transfer(msg.sender, amount);
         stakedBalance[msg.sender] = stakedBalance[msg.sender].sub(amount);
+        stakedTotal[msg.sender] = stakedTotal[msg.sender].sub(amount);
         emit _StakesWithdrawn(msg.sender, amount);
     }
 
@@ -140,6 +141,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(hasRole(STAKER_ROLE, msg.sender), "Must have staker role to perform this action");
         transfer(stakingAddress, amount);
         stakedBalance[msg.sender] = stakedBalance[msg.sender].add(amount);
+        stakedTotal[msg.sender] = stakedTotal[msg.sender].add(amount);
         emit _StakesDeposited(msg.sender, amount);
     }
 
@@ -152,6 +154,14 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         return (stakedBalance[msg.sender]);
     }
 
+    /**
+    @dev Function for users to see the TOTAL balance (sum of stakes in all ecosystems) they currently have in the stake pool
+    */
+
+    function viewStakedTotal() view public returns (uint256 balance) {
+      require(hasRole(STAKER_ROLE, msg.sender), "Must have staker role to perform this action");
+      return(stakedTotal[msg.sender]);
+    }
     /**
     @dev Revokes their staker role and returns all their tokens back to the user
     */
@@ -296,7 +306,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     function claimVote(uint256 pollID, address voter) public checkTime(pollID) voterCheck(voter) {  // msg.sender is usually for contracts, not addresses. So here, it is change(d) to voter
         require(voter != address(0));
-        uint256 claimable = stakedTotal[voter].sub(pollMapping[pollID]._votesClaimed[voter]).sub(minStake - 1);
+        uint256 claimable = (stakedTotal[voter].sub(pollMapping[pollID]._votesClaimed[voter])).sub(minStake.sub(1));
         require(claimable > 0, "Address has no votes available to claim");
         pollMapping[pollID]._votesClaimed[voter] = pollMapping[pollID]._votesClaimed[voter].add(claimable);
         pollMapping[pollID]._votes[voter] = pollMapping[pollID]._votes[voter].add(claimable);
