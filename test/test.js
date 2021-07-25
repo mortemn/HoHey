@@ -103,7 +103,7 @@ describe("mai contract testing", function () {
       });
       await this.mai.setStakingAddress(staking, { from: owner });
     });
-    it("should start a poll", async function () {
+    it("should start a poll and emit event", async function () {
       expectEvent(this.receipt, "_PollCreated", {
         votedTokenAmount: "1000",
         pollID: "1",
@@ -153,24 +153,96 @@ describe("mai contract testing", function () {
       await this.mai.claimVote(1, owner, { from: owner });
       await this.mai.makeVote(1, 1, 1, owner, { from: owner });
     });
+    it("should emit vote event after voting", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(2000, { from: owner });
+      await this.mai.claimVote(1, owner, { from: owner });
+      const receipt = await this.mai.makeVote(1, 1, 1, owner, { from: owner });
+      expectEvent(receipt, "_VoteMade", {
+        pollID: "1",
+        votes: "1",
+        voter: owner,
+        side: "1",
+      });
+    });
     it("should be able to mint rewards", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
       await this.mai.deposit(2000, { from: owner });
       await this.mai.claimVote(1, owner, { from: owner });
       await this.mai.makeVote(1, 1, 1, owner, { from: owner });
-      await time.increase(5);
+      await time.increase(10);
       await this.mai.mintRewards(1, { from: owner });
     });
+    it("should emit results generated event after minting rewards", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(2000, { from: owner });
+      await this.mai.claimVote(1, owner, { from: owner });
+      await this.mai.makeVote(1, 1, 1, owner, { from: owner });
+      await time.increase(10);
+      const receipt = await this.mai.mintRewards(1, { from: owner });
+      await expectEvent(receipt, "_ResultsGenerated", {
+        amount: "1000",
+        pollID: "1",
+      });
+    });
+
     it("should only be able to claim reward once", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
       await this.mai.deposit(1001, { from: owner });
       await this.mai.claimVote(1, owner);
       await this.mai.makeVote(1, 1, 1, owner, { from: owner });
-      await time.increase(5);
+      await time.increase(10);
       await this.mai.mintRewards(1, { from: owner });
       await expectRevert(
         this.mai.mintRewards(1, { from: owner }),
         "Rewards already claimed"
+      );
+    });
+    it("should revert when voting on ended poll", async function () {
+      await time.increase(30);
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(1001, { from: owner });
+      await this.mai.claimVote(1, owner);
+      await expectRevert(
+        this.mai.makeVote(1, 1, 1, owner, { from: owner }),
+        "Must be an ongoing poll"
+      );
+    });
+    it("should pass in false when check if active poll has ended", async function () {
+      await expect(await this.mai.pollEnded(1)).equal(false);
+    });
+    it("should pass in true when check if ended poll has ended", async function () {
+      await time.increase(10);
+      const { end } = await this.mai.pollMapping.call(1);
+      await expect(await this.mai.pollEnded(1)).equal(true);
+    });
+    it("should check if poll is ongoing", async function () {
+      await this.mai.correctTime(1);
+      const { ongoing } = await this.mai.pollMapping.call(1);
+      await expect(ongoing).equal(true);
+    });
+    it("should pass ongoing as false after poll has ended", async function () {
+      await time.increase(10);
+      await this.mai.correctTime(1);
+      const { ongoing } = await this.mai.pollMapping.call(1);
+      await expect(ongoing).equal(false);
+    });
+    it("should check if account is participating in any polls", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(1001, { from: owner });
+      await this.mai.claimVote(1, owner);
+      await this.mai.makeVote(1, 1, 1, owner, { from: owner });
+      await expect(await this.mai.checkParticipation.call(owner)).equal(true);
+    });
+
+    it("should revert when withdrawing after staking", async function () {
+      await this.mai.voterAllocation(owner, { from: owner });
+      await this.mai.deposit(1001, { from: owner });
+      await this.mai.claimVote(1, owner);
+      await this.mai.makeVote(1, 1, 1, owner, { from: owner });
+      await expectRevert(
+        this.mai.withdraw(1, { from: owner }),
+        "You must not be participating in any vote in order to withdraw any staked tokens"
       );
     });
   });

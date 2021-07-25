@@ -51,6 +51,13 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
       } 
       _;
     }
+
+    function correctTime(uint256 pollID) public {
+      if (pollEnded(pollID) == true && pollMapping[pollID].ongoing == true) {
+        pollMapping[pollID].ongoing = false;
+      } 
+    }
+
       
 
     function pause() onlyOwner internal {
@@ -178,6 +185,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     struct Poll {
         address pollStarter; // initiator of the poll;
+        address toAddress;
         uint256 start; // block start;
         uint256 end; // start + period (_commitDuration)
         // uint256 end; // Date when poll ends
@@ -189,6 +197,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         uint256 action; // action 1: Minting tokens; action 2: Burning tokens; action 3: Transfering tokens; action 4: snapshot;
         bool ongoing; // Returns true if poll is still active
         bool rewardsClaimed; // Stores if the rewards were already claimed
+        bool passed; // Stores if the poll passed or not
         mapping(address => uint256) _votesClaimed; // Amount of votes already claimed by the voter
         mapping(address => bool) _participant; // Maps address of user to whether they have voted in an active poll
         mapping(address => uint256) _votes; // Amount of votes placed by the voter
@@ -207,7 +216,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param _quorumOption Users can decide if the winner is decided by the percentage majority out of 100 or whether the 'for' side has more votes than the 'against' side
     @param _voteQuorum Assumes that the _quorumOption is false, passes in the percentage majority out of 100 that is required to win the vote
     @param _votedTokenAmount The amount of tokens minted/burned if poll is successful 
-    @param _commitDuration Length of the poll in days
+    @param _commitDuration Length of the poll in seconds
     @param _action Type of poll, action 1 is for minting tokens, action 2 is for burning tokens, action 3 is for transfering tokens, action 4 is for taking a snapshot.
     */
 
@@ -215,7 +224,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(hasRole(STAKER_ROLE, msg.sender));
         require (((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0)), "Quorum must either be allowed with a vote quorum number or disabled without a vote quorum number");
         require (_votedTokenAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
-        uint256 end = block.timestamp.add(_commitDuration.mul(1 days));
+        uint256 end = block.timestamp.add(_commitDuration);
         pollNonce = pollNonce.add(1);
         Poll storage newPoll = pollMapping[pollNonce];
         newPoll.pollStarter = msg.sender;
@@ -229,6 +238,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         newPoll.votesFor = 0;
         newPoll.votesAgainst = 0;
         newPoll.ongoing = true;
+        newPoll.passed = false;
 
         emit _PollCreated(_votedTokenAmount, end, pollNonce, msg.sender);
         return pollNonce;
@@ -339,7 +349,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     function makeVote(uint256 votesMade, uint256 pollID, uint256 side, address voter) public checkTime(pollID) voterCheck(voter) {
         require(voter != address(0), "Must be a non-zero address");
-        require(pollMapping[pollID].ongoing = true, "Must be an ongoing poll");
+        require(pollMapping[pollID].ongoing == true, "Must be an ongoing poll");
         require(pollMapping[pollID]._votes[voter] > 0, "Address has no votes currently, call function claimVote to claim a vote");
         require(votesMade <= pollMapping[pollID]._votes[voter], "You do not have enough votes to do this action");
         require(pollMapping[pollID]._side[voter] == 0 || pollMapping[pollID]._side[voter] == side, "You have voted for another side before");
@@ -362,26 +372,22 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     */
     // ties are understood as rejections
 
-    function results(uint256 pollID) public checkTime(pollID) returns (bool passed) {
-        endPoll(pollID);
-        require(isNotExpired(pollID) == false);
-        require(pollExists(pollID));
+    function calculateResults(uint256 pollID) public checkTime(pollID) {
+        require(pollMapping[pollID].ongoing == false, "The poll is still ongoing");
         if (pollMapping[pollID].quorumOption == false) {
             if (pollMapping[pollID].votesFor > pollMapping[pollID].votesAgainst) {
-                return (true);
+              pollMapping[pollID].passed = true;
             } else if (pollMapping[pollID].votesFor < pollMapping[pollID].votesAgainst) {
-                return (false);
-            } else {
-                return (false);
+              pollMapping[pollID].passed = false;
+            } else if (pollMapping[pollID].votesFor == pollMapping[pollID].votesAgainst){
+              pollMapping[pollID].passed = false;
             }
         } else if (pollMapping[pollID].quorumOption == true) {
             if (quorumCalc(pollID) >= pollMapping[pollID].voteQuorum) {
-                return (true);
+              pollMapping[pollID].passed = true;
             } else if (quorumCalc(pollID) < pollMapping[pollID].voteQuorum) {
-                return  (false);
-            } else {
-                return (false);
-            }
+              pollMapping[pollID].passed = false;
+            } 
         }
     }
 
@@ -415,6 +421,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     
 
     function _claimRewards(uint256 pollID) checkTime(pollID) public {
+      calculateResults(pollID);
+      require(pollMapping[pollID].passed == true, "the poll did not pass");
       require(pollMapping[pollID].rewardsClaimed == false, "Rewards already claimed");
       pollMapping[pollID].rewardsClaimed = true;
     }
@@ -427,8 +435,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     function mintRewards (uint256 pollID) checkTime(pollID) onlyOwner payable public {
         _claimRewards(pollID);
-        require(pollMapping[pollID].action == 1);
-        require(pollMapping[pollID].ongoing == false);
+        require(pollMapping[pollID].action == 1, "The poll is not made for minting");
+        require(pollMapping[pollID].ongoing == false, "The poll is still ongoing");
         _beforeTokenTransfer(address(0), msg.sender, pollMapping[pollID].votedTokenAmount);
         _mint(msg.sender, pollMapping[pollID].votedTokenAmount);
         emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);  
@@ -471,8 +479,9 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param voter Address of the voter
     */
 
-    function checkParticipation(address voter) public view returns(bool participating){
-        for (uint256 i = 1; i < pollNonce; i++) {
+    function checkParticipation(address voter) public returns(bool participating){
+        for (uint256 i = 1; i <= pollNonce; i++) {
+            correctTime(i);
             if (pollMapping[i].ongoing == true && pollMapping[i]._participant[voter] == true) {
                 return true;
             }
@@ -497,7 +506,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     function pollEnded(uint256 _pollID) public view returns (bool ended) {
         require(pollExists(_pollID));
 
-        return isNotExpired(pollMapping[_pollID].end);
+        return isExpired(pollMapping[_pollID].end);
     }
 
     /**
@@ -505,8 +514,12 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param _terminationDate The date for checking
     */
 
-    function isNotExpired(uint256 _terminationDate) public view returns (bool expired) {
-        return (block.timestamp < _terminationDate);
+    function isExpired(uint256 _terminationDate) public view returns (bool expired) {
+      if (block.timestamp > _terminationDate) {
+        return true;
+      } else if (block.timestamp <= _terminationDate) {
+        return false;
+      }
     }
 }
 
