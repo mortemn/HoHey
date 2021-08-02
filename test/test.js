@@ -185,7 +185,6 @@ describe("mai contract testing", function () {
         pollID: "1",
       });
     });
-
     it("should only be able to claim reward once", async function () {
       await this.mai.voterAllocation(owner, { from: owner });
       await this.mai.deposit(1001, { from: owner });

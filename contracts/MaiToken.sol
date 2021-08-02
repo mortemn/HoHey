@@ -185,7 +185,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
 
     struct Poll {
         address pollStarter; // initiator of the poll;
-        address toAddress;
+        address toAddress; //address of where the tokens are minted/ burned/ transfered
+        address fromAddress; // address where the tokens are transferred from if the transfer option is chosen
         uint256 start; // block start;
         uint256 end; // start + period (_commitDuration)
         // uint256 end; // Date when poll ends
@@ -220,9 +221,10 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
     @param _action Type of poll, action 1 is for minting tokens, action 2 is for burning tokens, action 3 is for transfering tokens, action 4 is for taking a snapshot.
     */
 
-    function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _action, uint256 _votedTokenAmount, uint256 _commitDuration) public returns (uint256 pollID) {
+    function startPoll(bool _quorumOption, uint256 _voteQuorum, uint256 _action, uint256 _votedTokenAmount, uint256 _commitDuration, address _recipient, address _sender) public returns (uint256 pollID) {
         require(hasRole(STAKER_ROLE, msg.sender));
         require (((_quorumOption == false && _voteQuorum == 0) || (_quorumOption == true && _voteQuorum > 0)), "Quorum must either be allowed with a vote quorum number or disabled without a vote quorum number");
+        require((_action == 3 && _sender != address(0)) || (_action != 3 && _sender == address(0)), "Transferring tokens require address of sender, not transferring tokens must leave address of sender as 0");
         require (_votedTokenAmount > 0, "The amount of tokens to be burned/ minted must be larger than 0");
         uint256 end = block.timestamp.add(_commitDuration);
         pollNonce = pollNonce.add(1);
@@ -235,6 +237,8 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         newPoll.votedTokenAmount = _votedTokenAmount;
         newPoll.rewardsClaimed = false;
         newPoll.end = end;
+        newPoll.toAddress = _recipient;
+        newPoll.fromAddress = _sender;
         newPoll.votesFor = 0;
         newPoll.votesAgainst = 0;
         newPoll.ongoing = true;
@@ -438,7 +442,7 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(pollMapping[pollID].action == 1, "The poll is not made for minting");
         require(pollMapping[pollID].ongoing == false, "The poll is still ongoing");
         _beforeTokenTransfer(address(0), msg.sender, pollMapping[pollID].votedTokenAmount);
-        _mint(msg.sender, pollMapping[pollID].votedTokenAmount);
+        _mint(pollMapping[pollID].toAddress, pollMapping[pollID].votedTokenAmount);
         emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);  
     }
 
@@ -452,18 +456,16 @@ contract Mai is Context, ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pau
         require(pollMapping[pollID].action == 2);
         require(pollMapping[pollID].ongoing == false);
         _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].votedTokenAmount);
-        burnFrom(msg.sender, pollMapping[pollID].votedTokenAmount);
+        burnFrom(pollMapping[pollID].toAddress, pollMapping[pollID].votedTokenAmount);
         emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
     }
 
 
-    function transferRewards(uint256 pollID, address recipient) checkTime(pollID) onlyOwner public virtual {
+    function transferRewards(uint256 pollID) checkTime(pollID) onlyOwner public virtual {
         _claimRewards(pollID);
         require(pollMapping[pollID].action == 3);
         require(pollMapping[pollID].ongoing == false);
-        _beforeTokenTransfer(msg.sender, address(0), pollMapping[pollID].votedTokenAmount);
-        burn(pollMapping[pollID].votedTokenAmount);
-        _transfer(_msgSender(), recipient, pollMapping[pollID].votedTokenAmount);
+        _transfer(pollMapping[pollID].fromAddress, pollMapping[pollID].toAddress, pollMapping[pollID].votedTokenAmount);
         
         emit _ResultsGenerated(pollMapping[pollID].votedTokenAmount, pollID);
     }
